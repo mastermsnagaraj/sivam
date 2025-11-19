@@ -16,7 +16,7 @@
                 <button class="btn btn-lang" onclick="toggleLanguage()">
                     <i class="fas fa-language"></i> <span data-i18n="lang-toggle">English</span>
                 </button>
-                <button class="btn btn-primary" onclick="showManageMenu()">
+                <button class="btn btn-primary" onclick="showCurrentMenuPage()">
                     <i class="fas fa-cog"></i> <span data-i18n="manage-menu">மெனு நிர்வகிக்க</span>
                 </button>
                 <button class="btn btn-secondary" onclick="showSalesReport()">
@@ -48,6 +48,55 @@
                 <div id="no-results" class="no-results" style="display: none;">
                     <i class="fas fa-search"></i>
                     <p data-i18n="no-results">பொருட்கள் கிடைக்கவில்லை</p>
+                </div>
+            </section>
+
+            <section id="current-menu-page" class="menu-section" style="display: none;">
+                <div class="section-header">
+                    <h2 data-i18n="current-menu">தற்போதைய மெனு</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="hideCurrentMenuPage()">
+                        <i class="fas fa-times"></i> <span data-i18n="close">மூடு</span>
+                    </button>
+                </div>
+
+                <div class="manage-menu-form">
+                    <h3 data-i18n="add-new-item">புதிய பொருள் சேர்க்க</h3>
+                    <input type="text" id="cp-item-name" data-i18n-placeholder="item-name-placeholder" placeholder="பொருள் பெயர்">
+                    <input type="number" id="cp-item-price" data-i18n-placeholder="item-price-placeholder" placeholder="விலை (₹)" step="0.01">
+                    <div class="stock-input-group">
+                        <input type="number" id="cp-item-stock" data-i18n-placeholder="stock-quantity" placeholder="பங்கு அளவு" min="0" step="0.01">
+                        <select id="cp-item-unit" data-i18n-placeholder="select-unit">
+                            <option value="units" data-i18n="units">அலகுகள்</option>
+                            <option value="grams" data-i18n="grams">கிராம் (g)</option>
+                            <option value="kg" data-i18n="kg">கிலோகிராம் (kg)</option>
+                        </select>
+                    </div>
+
+                    <div class="image-upload-section">
+                        <label class="upload-label" for="cp-item-image-upload">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span data-i18n="upload-image">படத்தை பதிவேற்று</span>
+                        </label>
+                        <input type="file" id="cp-item-image-upload" accept="image/*" onchange="handleCPImageUpload(event)" style="display: none;">
+                        <div id="cp-image-preview-container" style="display: none; margin-top: 10px;">
+                            <img id="cp-image-preview" src="" alt="Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid #e0e0e0;">
+                            <button type="button" class="btn btn-danger btn-sm" onclick="clearCPImageUpload()" style="margin-top: 5px;">
+                                <i class="fas fa-times"></i> Remove
+                            </button>
+                        </div>
+                        <div class="image-divider">
+                            <span data-i18n="or">அல்லது</span>
+                        </div>
+                        <input type="url" id="cp-item-image" data-i18n-placeholder="image-url" placeholder="படத்தின் URL">
+                    </div>
+
+                    <div class="manage-actions" style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="addMenuItemFromCurrentPage()"><span data-i18n="add">சேர்க்க</span></button>
+                    </div>
+                </div>
+
+                <div class="menu-list">
+                    <div id="current-menu-list"></div>
                 </div>
             </section>
 
@@ -205,6 +254,11 @@
                     <input type="month" id="report-month" onchange="updateSalesReport()">
                 </div>
                 <div id="sales-report-content"></div>
+                <div class="report-actions" style="margin-top:10px; text-align:center;">
+                    <button class="btn btn-primary btn-sm" onclick="downloadSalesReportPDF()">
+                        <i class="fas fa-file-pdf"></i> Download PDF
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -218,6 +272,11 @@
                     <input type="date" id="stock-date" onchange="updateDailyStockReport()">
                 </div>
                 <div id="daily-stock-content"></div>
+                <div class="report-actions" style="margin-top:10px; text-align:center;">
+                    <button class="btn btn-primary btn-sm" onclick="downloadDailyStockPDF()">
+                        <i class="fas fa-file-pdf"></i> Download PDF
+                    </button>
+                </div>
             </div>
         </div>
 
