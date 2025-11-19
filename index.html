@@ -249,16 +249,16 @@
             <div class="modal-content large">
                 <span class="close" onclick="closeSalesReport()">&times;</span>
                 <h2 data-i18n="sales-report">மாதாந்திர விற்பனை அறிக்கை</h2>
+                <div class="report-actions" style="margin-bottom:10px; text-align:right;">
+                    <button class="btn btn-primary btn-sm" onclick="downloadSalesReportPDF()">
+                        <i class="fas fa-file-pdf"></i> Download PDF
+                    </button>
+                </div>
                 <div class="report-filters">
                     <label data-i18n="select-month">மாதம் தேர்ந்தெடுக்கவும்</label>:
                     <input type="month" id="report-month" onchange="updateSalesReport()">
                 </div>
                 <div id="sales-report-content"></div>
-                <div class="report-actions" style="margin-top:10px; text-align:center;">
-                    <button class="btn btn-primary btn-sm" onclick="downloadSalesReportPDF()">
-                        <i class="fas fa-file-pdf"></i> Download PDF
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -267,16 +267,16 @@
             <div class="modal-content large">
                 <span class="close" onclick="closeDailyStockReport()">&times;</span>
                 <h2 data-i18n="daily-stock">தினசரி பங்கு அறிக்கை</h2>
+                <div class="report-actions" style="margin-bottom:10px; text-align:right;">
+                    <button class="btn btn-primary btn-sm" onclick="downloadDailyStockPDF()">
+                        <i class="fas fa-file-pdf"></i> Download PDF
+                    </button>
+                </div>
                 <div class="report-filters">
                     <label data-i18n="select-date">தேதியைத் தேர்ந்தெடுக்கவும்</label>:
                     <input type="date" id="stock-date" onchange="updateDailyStockReport()">
                 </div>
                 <div id="daily-stock-content"></div>
-                <div class="report-actions" style="margin-top:10px; text-align:center;">
-                    <button class="btn btn-primary btn-sm" onclick="downloadDailyStockPDF()">
-                        <i class="fas fa-file-pdf"></i> Download PDF
-                    </button>
-                </div>
             </div>
         </div>
 
