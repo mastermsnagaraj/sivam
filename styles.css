@@ -646,22 +646,39 @@ main {
     scroll-padding-top: 12px;
 }
 
+#current-menu-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 60vh;
+    padding: clamp(12px, 3vw, 24px);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: clamp(10px, 2vw, 18px);
+    scroll-padding-top: 12px;
+}
+
 /* Custom Scrollbar for Manage Menu */
-#manage-menu-list::-webkit-scrollbar {
+#manage-menu-list::-webkit-scrollbar,
+#current-menu-list::-webkit-scrollbar {
     width: 8px;
 }
 
-#manage-menu-list::-webkit-scrollbar-track {
+#manage-menu-list::-webkit-scrollbar-track,
+#current-menu-list::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 10px;
 }
 
-#manage-menu-list::-webkit-scrollbar-thumb {
+#manage-menu-list::-webkit-scrollbar-thumb,
+#current-menu-list::-webkit-scrollbar-thumb {
     background: #667eea;
     border-radius: 10px;
 }
 
-#manage-menu-list::-webkit-scrollbar-thumb:hover {
+#manage-menu-list::-webkit-scrollbar-thumb:hover,
+#current-menu-list::-webkit-scrollbar-thumb:hover {
     background: #5568d3;
 }
 
@@ -1268,7 +1285,8 @@ main {
         max-height: 95vh;
     }
 
-    #manage-menu-list {
+    #manage-menu-list,
+    #current-menu-list {
         height: 100%;
         max-height: none;
         padding: clamp(10px, 3vw, 18px);
@@ -1429,7 +1447,8 @@ main {
         max-height: 90vh;
     }
 
-    #manage-menu-list {
+    #manage-menu-list,
+    #current-menu-list {
         height: 100%;
         max-height: none;
         padding: clamp(8px, 3vw, 16px);
