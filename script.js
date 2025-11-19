@@ -783,6 +783,8 @@ function shareOnWhatsApp() {
 
 // Image upload handling
 let uploadedImageBase64 = null;
+let inlineImageUploads = {};
+let cpUploadedImageBase64 = null;
 
 function handleImageUpload(event) {
     const file = event.target.files[0];
@@ -1018,7 +1020,176 @@ function removeCustomQRCode() {
 
 // Manage Menu Functions
 function showManageMenu() {
-    document.getElementById('manage-menu-modal').style.display = 'block';
+    showCurrentMenuPage();
+}
+
+function showCurrentMenuPage(){
+    const page = document.getElementById('current-menu-page');
+    if (page){ page.style.display='block'; }
+    const menuSection = document.getElementById('menu-section');
+    if (menuSection){ menuSection.style.display='none'; }
+    renderCurrentMenuPageList();
+}
+
+function hideCurrentMenuPage(){
+    const page = document.getElementById('current-menu-page');
+    if (page){ page.style.display='none'; }
+    const menuSection = document.getElementById('menu-section');
+    if (menuSection){ menuSection.style.display='block'; }
+}
+
+function renderCurrentMenuPageList(){
+    const list = document.getElementById('current-menu-list');
+    if (!list) return;
+    list.innerHTML = '';
+    menuItems.forEach(item => {
+        const itemName = currentLang === 'ta' ? (item.name || item.nameEn) : (item.nameEn || item.name);
+        const stock = item.stock || 0;
+        const unit = item.unit || 'units';
+        const stockClass = stock > 0 ? (stock <= 10 ? 'stock-low' : 'stock-available') : 'stock-out';
+        let unitDisplay = unit === 'kg' ? ' ' + translations[currentLang]['kg'] :
+                         (unit === 'grams' || unit === 'g') ? ' ' + translations[currentLang]['grams'] :
+                         ' ' + translations[currentLang]['units'];
+        const row = document.createElement('div');
+        row.className = 'manage-menu-item';
+        row.innerHTML = `
+            <div class="manage-menu-item-info">
+                <img src="${item.image}" alt="${itemName}" onerror="this.src='https://via.placeholder.com/60?text=${encodeURIComponent(itemName)}'">
+                <div>
+                    <strong>${itemName}</strong> - ₹${item.price.toFixed(2)}
+                    <div class="stock-info ${stockClass}" style="margin-top: 5px; font-size: 0.9em;">
+                        ${translations[currentLang]['current-stock']}: <strong>${stock}${unitDisplay}</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="manage-menu-item-actions">
+                <button class="btn btn-primary" onclick="updateStock(${item.id})">
+                    <i class="fas fa-boxes"></i> ${translations[currentLang]['manage-stock']}
+                </button>
+                <button class="btn btn-delete" onclick="deleteMenuItem(${item.id})">
+                    <i class="fas fa-trash"></i> ${translations[currentLang]['delete']}
+                </button>
+                <button class="btn btn-edit btn-sm" onclick="startInlineEdit(${item.id})">
+                    <i class="fas fa-pencil-alt"></i> ${translations[currentLang]['edit']}
+                </button>
+            </div>
+            <div id="inline-editor-${item.id}" style="display:none; margin-top:10px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <input type="text" id="inline-name-${item.id}" value="${itemName}">
+                    <input type="number" id="inline-price-${item.id}" step="0.01" value="${item.price}">
+                    <select id="inline-unit-${item.id}">
+                        <option value="units" ${unit==='units'?'selected':''}>${translations[currentLang]['units']}</option>
+                        <option value="grams" ${unit==='grams'?'selected':''}>${translations[currentLang]['grams']}</option>
+                        <option value="kg" ${unit==='kg'?'selected':''}>${translations[currentLang]['kg']}</option>
+                    </select>
+                    <input type="number" id="inline-stock-${item.id}" step="${unit==='units'?'1':(unit==='kg'?'0.1':'0.01')}" value="${stock}" min="0">
+                    <input type="url" id="inline-image-${item.id}" value="${item.image}">
+                    <input type="file" id="inline-image-upload-${item.id}" accept="image/*" onchange="handleInlineImageUpload(event, ${item.id})">
+                </div>
+                <div class="manage-menu-item-actions" style="margin-top:10px;">
+                    <button class="btn btn-primary btn-sm" onclick="saveInlineEdit(${item.id})"><i class="fas fa-save"></i> Save</button>
+                    <button class="btn btn-secondary btn-sm" onclick="cancelInlineEdit(${item.id})"><i class="fas fa-times"></i> ${translations[currentLang]['close']}</button>
+                </div>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+}
+
+function startInlineEdit(itemId){
+    const editor = document.getElementById(`inline-editor-${itemId}`);
+    if (editor){ editor.style.display = 'block'; }
+}
+
+function cancelInlineEdit(itemId){
+    const editor = document.getElementById(`inline-editor-${itemId}`);
+    if (editor){ editor.style.display = 'none'; }
+    delete inlineImageUploads[itemId];
+}
+
+function saveInlineEdit(itemId){
+    const name = document.getElementById(`inline-name-${itemId}`).value.trim();
+    const price = parseFloat(document.getElementById(`inline-price-${itemId}`).value);
+    const unit = document.getElementById(`inline-unit-${itemId}`).value;
+    const urlImage = document.getElementById(`inline-image-${itemId}`).value.trim();
+    const image = inlineImageUploads[itemId] || urlImage;
+    const stockVal = document.getElementById(`inline-stock-${itemId}`).value;
+    const stock = stockVal ? parseFloat(stockVal) : undefined;
+    if(!name || !price || price<=0){ showNotification(translations[currentLang]['enter-all-details']); return; }
+    applyInventoryEdit(itemId, { name, price, unit, image, stock });
+    delete inlineImageUploads[itemId];
+    cancelInlineEdit(itemId);
+    renderCurrentMenuPageList();
+}
+
+function handleInlineImageUpload(event, itemId){
+    const file = event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = function(e){ inlineImageUploads[itemId] = e.target.result; };
+    reader.readAsDataURL(file);
+}
+
+function handleCPImageUpload(event){
+    const file = event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showNotification('Please select a valid image file'); return; }
+    const reader = new FileReader();
+    reader.onload = function(e){
+        cpUploadedImageBase64 = e.target.result;
+        const preview = document.getElementById('cp-image-preview');
+        const container = document.getElementById('cp-image-preview-container');
+        if (preview) preview.src = cpUploadedImageBase64;
+        if (container) container.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearCPImageUpload(){
+    cpUploadedImageBase64 = null;
+    const input = document.getElementById('cp-item-image-upload');
+    const container = document.getElementById('cp-image-preview-container');
+    const preview = document.getElementById('cp-image-preview');
+    if (input) input.value = '';
+    if (container) container.style.display = 'none';
+    if (preview) preview.src = '';
+}
+
+function addMenuItemFromCurrentPage(){
+    const name = document.getElementById('cp-item-name').value.trim();
+    const price = parseFloat(document.getElementById('cp-item-price').value);
+    const stockInput = document.getElementById('cp-item-stock').value;
+    const stock = stockInput ? parseFloat(stockInput) : 0;
+    const unit = document.getElementById('cp-item-unit').value || 'units';
+    const imageUrl = document.getElementById('cp-item-image').value.trim();
+    const image = cpUploadedImageBase64 || imageUrl || ('https://via.placeholder.com/200?text=' + encodeURIComponent(name));
+    if (!name || !price || price <= 0) { showNotification(translations[currentLang]['enter-all-details']); return; }
+    const newItem = {
+        id: Date.now(),
+        name: currentLang === 'ta' ? name : '',
+        nameEn: currentLang === 'en' ? name : '',
+        price: price,
+        stock: stock,
+        unit: unit,
+        image: image
+    };
+    menuItems.push(newItem);
+    saveMenuItems();
+    renderMenu();
+    renderCurrentMenuPageList();
+    const nameEl = document.getElementById('cp-item-name');
+    const priceEl = document.getElementById('cp-item-price');
+    const stockEl = document.getElementById('cp-item-stock');
+    const unitEl = document.getElementById('cp-item-unit');
+    const imageEl = document.getElementById('cp-item-image');
+    if (nameEl) nameEl.value = '';
+    if (priceEl) priceEl.value = '';
+    if (stockEl) stockEl.value = '';
+    if (unitEl) unitEl.value = 'units';
+    if (imageEl) imageEl.value = '';
+    clearCPImageUpload();
+    showNotification(translations[currentLang]['item-added']);
 }
 
 function closeManageMenu() {
@@ -1110,16 +1281,13 @@ function renderManageMenuList() {
                 </div>
             </div>
             <div class="manage-menu-item-actions">
-                <button class="btn btn-edit" onclick="editMenuItem(${item.id})">
-                    <i class="fas fa-edit"></i> ${translations[currentLang]['edit']}
-                </button>
-                <button class="btn btn-primary" onclick="updateStock(${item.id})">
-                    <i class="fas fa-boxes"></i> ${translations[currentLang]['manage-stock']}
-                </button>
-                <button class="btn btn-delete" onclick="deleteMenuItem(${item.id})">
-                    <i class="fas fa-trash"></i> ${translations[currentLang]['delete']}
-                </button>
-            </div>
+                    <button class="btn btn-primary" onclick="updateStock(${item.id})">
+                        <i class="fas fa-boxes"></i> ${translations[currentLang]['manage-stock']}
+                    </button>
+                    <button class="btn btn-delete" onclick="deleteMenuItem(${item.id})">
+                        <i class="fas fa-trash"></i> ${translations[currentLang]['delete']}
+                    </button>
+                </div>
         `;
         manageList.appendChild(itemDiv);
     });
@@ -1276,6 +1444,15 @@ function applyInventoryEdit(itemId, updated){
     item.price = updated.price;
     item.unit = updated.unit || item.unit;
     if (updated.image) item.image = updated.image;
+    const prevStock = item.stock || 0;
+    if (updated.stock !== undefined && updated.stock !== null) {
+        const newStock = Math.max(0, parseFloat(updated.stock));
+        if (!isNaN(newStock) && newStock !== prevStock) {
+            const itemName = currentLang === 'ta' ? (item.name || item.nameEn) : (item.nameEn || item.name);
+            recordStockChange(item.id, itemName, 'adjusted', Math.abs(newStock - prevStock), prevStock, newStock, 'Inline edit');
+            item.stock = newStock;
+        }
+    }
     saveMenuItems();
     renderMenu();
     renderManageMenuList();
@@ -1293,7 +1470,7 @@ function openManageMenuWindow(){
         h1{font-size:18px;margin:0}
         .content{padding:clamp(12px,3vw,22px)}
         .title{margin:0 0 clamp(10px,2vw,16px);text-align:center;color:#374151}
-        .list{display:flex;flex-direction:column;gap:clamp(10px,2vw,16px)}
+        .list{display:flex;flex-direction:column;gap:clamp(10px,2vw,16px);max-height:75vh;overflow-y:auto}
         .itemRow{display:flex;align-items:center;gap:12px;padding:clamp(10px,2vw,14px);border:1px solid #eee;border-radius:10px}
         .thumb{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb}
         .meta{flex:1}
@@ -1574,6 +1751,58 @@ function updateDailyStockReport() {
     }
 
     reportContent.innerHTML = reportHTML;
+}
+
+function downloadDailyStockPDF(){
+    const t = translations[currentLang];
+    const selectedDate = document.getElementById('stock-date').value || '';
+    const content = document.getElementById('daily-stock-content').innerHTML;
+    const w = window.open('', '_blank');
+    w.document.write(`
+      <html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>
+      <title>${t['daily-stock']}</title>
+      <style>
+        body{font-family:Arial,sans-serif;margin:20px}
+        h2{text-align:center;color:#667eea;margin:0 0 10px}
+        .sub{color:#666;text-align:center;margin-bottom:20px}
+        .sales-table, .stock-table{width:100%;border-collapse:collapse}
+        .sales-table th, .sales-table td, .stock-table th, .stock-table td{border:1px solid #e0e0e0;padding:8px}
+        .stock-summary-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px}
+        .summary-card{border:1px solid #e0e0e0;border-radius:8px;padding:10px;text-align:center}
+      </style>
+      </head><body>
+        <h2>${t['daily-stock']}</h2>
+        <div class='sub'>${selectedDate}</div>
+        ${content}
+      </body></html>`);
+    w.document.close();
+    w.print();
+}
+
+function downloadSalesReportPDF(){
+    const t = translations[currentLang];
+    const selectedMonth = document.getElementById('report-month').value || '';
+    const content = document.getElementById('sales-report-content').innerHTML;
+    const w = window.open('', '_blank');
+    w.document.write(`
+      <html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>
+      <title>${t['sales-report']}</title>
+      <style>
+        body{font-family:Arial,sans-serif;margin:20px}
+        h2{text-align:center;color:#667eea;margin:0 0 10px}
+        .sub{color:#666;text-align:center;margin-bottom:20px}
+        .sales-table, .stock-table{width:100%;border-collapse:collapse}
+        .sales-table th, .sales-table td, .stock-table th, .stock-table td{border:1px solid #e0e0e0;padding:8px}
+        .report-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px}
+        .report-card{border:1px solid #e0e0e0;border-radius:8px;padding:10px;text-align:center}
+      </style>
+      </head><body>
+        <h2>${t['sales-report']}</h2>
+        <div class='sub'>${selectedMonth}</div>
+        ${content}
+      </body></html>`);
+    w.document.close();
+    w.print();
 }
 
 function updateSalesReport() {
