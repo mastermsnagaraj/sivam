@@ -253,6 +253,51 @@ if (needsSave) {
 // Search functionality
 let searchQuery = '';
 
+function isWeightUnit(unit) {
+    const u = (unit || '').toLowerCase();
+    return u === 'kg' || u === 'grams' || u === 'g';
+}
+
+function normalizeUnit(unit) {
+    const u = (unit || '').toLowerCase();
+    return u === 'g' ? 'grams' : u;
+}
+
+function convertWeight(value, fromUnit, toUnit) {
+    const from = normalizeUnit(fromUnit);
+    const to = normalizeUnit(toUnit);
+    if (!isWeightUnit(from) || !isWeightUnit(to)) return value;
+    if (from === to) return value;
+    if (from === 'grams' && to === 'kg') return parseFloat((value / 1000).toFixed(2));
+    if (from === 'kg' && to === 'grams') return parseFloat((value * 1000).toFixed(2));
+    return value;
+}
+
+function formatQuantityDisplay(value, unit) {
+    const u = normalizeUnit(unit);
+    if (u === 'kg') {
+        if (value < 1) {
+            const v = convertWeight(value, 'kg', 'grams');
+            return `${v} ${translations[currentLang]['grams']}`;
+        }
+        return `${value} ${translations[currentLang]['kg']}`;
+    }
+    if (u === 'grams') {
+        if (value >= 1000) {
+            const v = convertWeight(value, 'grams', 'kg');
+            return `${v} ${translations[currentLang]['kg']}`;
+        }
+        return `${value} ${translations[currentLang]['grams']}`;
+    }
+    return `${value} ${translations[currentLang]['units']}`;
+}
+
+let unitDisplayPrefs = JSON.parse(localStorage.getItem('unitDisplayPrefs')) || {};
+function saveUnitDisplayPrefs(){ localStorage.setItem('unitDisplayPrefs', JSON.stringify(unitDisplayPrefs)); }
+function getPreferredDisplayUnit(itemId){ const u = unitDisplayPrefs[itemId]; return u ? normalizeUnit(u) : null; }
+function setPreferredDisplayUnit(itemId, unit){ const u = normalizeUnit(unit); if (isWeightUnit(u)) { unitDisplayPrefs[itemId] = u; } else { delete unitDisplayPrefs[itemId]; } saveUnitDisplayPrefs(); }
+function formatQuantityWithPreference(itemId, value, unit){ const pref = getPreferredDisplayUnit(itemId); if (pref && isWeightUnit(unit)) { const v = convertWeight(value, unit, pref); return pref === 'kg' ? `${v} ${translations[currentLang]['kg']}` : `${v} ${translations[currentLang]['grams']}`; } return formatQuantityDisplay(value, unit); }
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     updateLanguage();
@@ -412,26 +457,25 @@ function renderMenu() {
         const stockClass = stock > 0 ? (stock <= 10 ? 'stock-low' : 'stock-available') : 'stock-out';
         const stockText = stock > 0 ? (stock <= 10 ? translations[currentLang]['low-stock'] : translations[currentLang]['in-stock']) : translations[currentLang]['out-of-stock'];
         
-        // Format stock display based on unit
-        let stockDisplay = stock;
-        let unitDisplay = '';
-        if (unit === 'kg') {
-            stockDisplay = stock;
-            unitDisplay = ' ' + translations[currentLang]['kg'];
-        } else if (unit === 'grams' || unit === 'g') {
-            stockDisplay = stock;
-            unitDisplay = ' ' + translations[currentLang]['grams'];
-        } else {
-            unitDisplay = ' ' + translations[currentLang]['units'];
-        }
+        const stockDisplayText = formatQuantityWithPreference(item.id, stock, unit);
+        const pref = getPreferredDisplayUnit(item.id) || normalizeUnit(unit);
+        const unitSelectorHtml = isWeightUnit(unit) ? `
+            <div class="unit-selector" style="margin:6px 0;">
+                <select onchange="setPreferredDisplayUnit(${item.id}, this.value); renderMenu();">
+                    <option value="kg" ${pref==='kg'?'selected':''}>${translations[currentLang]['kg']}</option>
+                    <option value="grams" ${pref==='grams'?'selected':''}>${translations[currentLang]['grams']}</option>
+                </select>
+            </div>
+        ` : '';
         
         menuItemDiv.innerHTML = `
             <img src="${item.image}" alt="${itemName}" onerror="this.src='https://via.placeholder.com/200?text=${encodeURIComponent(itemName)}'">
             <h3>${itemName}</h3>
             <div class="price">₹${item.price.toFixed(2)}</div>
+            ${unitSelectorHtml}
             <div class="stock-info ${stockClass}">
                 <i class="fas ${stock > 0 ? (stock <= 10 ? 'fa-exclamation-triangle' : 'fa-check-circle') : 'fa-times-circle'}"></i>
-                <span>${translations[currentLang]['stock']}: ${stockDisplay}${unitDisplay} - ${stockText}</span>
+                <span>${translations[currentLang]['stock']}: ${stockDisplayText} - ${stockText}</span>
             </div>
             <div class="item-actions">
                 <button class="btn btn-primary ${stock === 0 ? 'disabled' : ''}" onclick="addToCart(${item.id})" ${stock === 0 ? 'disabled' : ''}>
@@ -461,7 +505,8 @@ function addToCart(itemId) {
     if (cartItem) {
         const newQuantity = cartItem.quantity + 1;
         if (newQuantity > stock) {
-            showNotification(translations[currentLang]['insufficient-stock'] + ` (Available: ${stock})`);
+            const availableText = formatQuantityDisplay(stock, item.unit || 'units');
+            showNotification(translations[currentLang]['insufficient-stock'] + ` (Available: ${availableText})`);
             renderMenu(); // Refresh to show current stock
             return;
         }
@@ -499,22 +544,14 @@ function renderCart() {
         const unit = menuItem ? (menuItem.unit || 'units') : 'units';
         const itemName = currentLang === 'ta' ? (cartItem.name || cartItem.nameEn) : (cartItem.nameEn || cartItem.name);
         
-        // Format unit display
-        let unitDisplay = '';
-        if (unit === 'kg') {
-            unitDisplay = ' ' + translations[currentLang]['kg'];
-        } else if (unit === 'grams' || unit === 'g') {
-            unitDisplay = ' ' + translations[currentLang]['grams'];
-        } else {
-            unitDisplay = ' ' + translations[currentLang]['units'];
-        }
+        const quantityText = formatQuantityDisplay(cartItem.quantity, unit);
         
         const cartItemDiv = document.createElement('div');
         cartItemDiv.className = 'cart-item';
         cartItemDiv.innerHTML = `
             <div class="cart-item-info">
                 <div class="cart-item-name">${itemName}</div>
-                <div class="cart-item-price">₹${cartItem.price.toFixed(2)} x ${cartItem.quantity}${unitDisplay}</div>
+                <div class="cart-item-price">₹${cartItem.price.toFixed(2)} x ${quantityText}</div>
                 <div class="cart-item-quantity">
                     <button class="quantity-btn" onclick="updateQuantity(${cartItem.id}, -1)">-</button>
                     <span class="quantity-value">${cartItem.quantity}</span>
@@ -545,10 +582,8 @@ function updateQuantity(itemId, change) {
     if (newQuantity <= 0) {
         removeFromCart(itemId);
     } else if (newQuantity > stock) {
-        const unitDisplay = unit === 'kg' ? translations[currentLang]['kg'] : 
-                           (unit === 'grams' || unit === 'g') ? translations[currentLang]['grams'] : 
-                           translations[currentLang]['units'];
-        showNotification(translations[currentLang]['insufficient-stock'] + ` (Available: ${stock} ${unitDisplay})`);
+        const availableText = formatQuantityDisplay(stock, unit);
+        showNotification(translations[currentLang]['insufficient-stock'] + ` (Available: ${availableText})`);
     } else {
         cartItem.quantity = newQuantity;
         saveCart();
@@ -603,7 +638,9 @@ function generateBill() {
             const availableStock = menuItem.stock || 0;
             if (cartItem.quantity > availableStock) {
                 const itemName = currentLang === 'ta' ? (menuItem.name || menuItem.nameEn) : (menuItem.nameEn || menuItem.name);
-                stockIssues.push(`${itemName}: Requested ${cartItem.quantity}, Available ${availableStock}`);
+                const reqText = formatQuantityDisplay(cartItem.quantity, menuItem.unit || 'units');
+                const availText = formatQuantityDisplay(availableStock, menuItem.unit || 'units');
+                stockIssues.push(`${itemName}: Requested ${reqText}, Available ${availText}`);
             }
         }
     });
@@ -680,20 +717,12 @@ function generateBill() {
         const itemTotal = cartItem.price * cartItem.quantity;
         const itemName = currentLang === 'ta' ? (cartItem.name || cartItem.nameEn) : (cartItem.nameEn || cartItem.name);
         
-        // Format unit display for bill
-        let unitDisplay = '';
-        if (unit === 'kg') {
-            unitDisplay = ' ' + translations[currentLang]['kg'];
-        } else if (unit === 'grams' || unit === 'g') {
-            unitDisplay = ' ' + translations[currentLang]['grams'];
-        } else {
-            unitDisplay = ' ' + translations[currentLang]['units'];
-        }
+        const quantityTextForBill = formatQuantityDisplay(cartItem.quantity, unit);
         
         billContent += `
             <tr>
                 <td style="padding: 8px; text-align: ${currentLang === 'ta' ? 'right' : 'left'};">${itemName}</td>
-                <td style="padding: 8px; text-align: center;">${cartItem.quantity}${unitDisplay}</td>
+                <td style="padding: 8px; text-align: center;">${quantityTextForBill}</td>
                 <td style="padding: 8px; text-align: ${currentLang === 'ta' ? 'left' : 'right'};">₹${cartItem.price.toFixed(2)}</td>
                 <td style="padding: 8px; text-align: ${currentLang === 'ta' ? 'left' : 'right'};">₹${itemTotal.toFixed(2)}</td>
             </tr>
@@ -761,17 +790,8 @@ function shareOnWhatsApp() {
         const itemTotal = cartItem.price * cartItem.quantity;
         const itemName = currentLang === 'ta' ? (cartItem.name || cartItem.nameEn) : (cartItem.nameEn || cartItem.name);
         
-        // Format unit display
-        let unitDisplay = '';
-        if (unit === 'kg') {
-            unitDisplay = ' ' + translations[currentLang]['kg'];
-        } else if (unit === 'grams' || unit === 'g') {
-            unitDisplay = ' ' + translations[currentLang]['grams'];
-        } else {
-            unitDisplay = ' ' + translations[currentLang]['units'];
-        }
-        
-        message += `${itemName} - ${cartItem.quantity}${unitDisplay} x ₹${cartItem.price.toFixed(2)} = ₹${itemTotal.toFixed(2)}\n`;
+        const quantityTextMsg = formatQuantityDisplay(cartItem.quantity, unit);
+        message += `${itemName} - ${quantityTextMsg} x ₹${cartItem.price.toFixed(2)} = ₹${itemTotal.toFixed(2)}\n`;
     });
     
     message += `\n*${totalLabel}: ₹${total.toFixed(2)}*`;
@@ -1047,9 +1067,7 @@ function renderCurrentMenuPageList(){
         const stock = item.stock || 0;
         const unit = item.unit || 'units';
         const stockClass = stock > 0 ? (stock <= 10 ? 'stock-low' : 'stock-available') : 'stock-out';
-        let unitDisplay = unit === 'kg' ? ' ' + translations[currentLang]['kg'] :
-                         (unit === 'grams' || unit === 'g') ? ' ' + translations[currentLang]['grams'] :
-                         ' ' + translations[currentLang]['units'];
+        const stockTextInline = formatQuantityDisplay(stock, unit);
         const row = document.createElement('div');
         row.className = 'manage-menu-item';
         row.innerHTML = `
@@ -1058,7 +1076,7 @@ function renderCurrentMenuPageList(){
                 <div>
                     <strong>${itemName}</strong> - ₹${item.price.toFixed(2)}
                     <div class="stock-info ${stockClass}" style="margin-top: 5px; font-size: 0.9em;">
-                        ${translations[currentLang]['current-stock']}: <strong>${stock}${unitDisplay}</strong>
+                        ${translations[currentLang]['current-stock']}: <strong>${stockTextInline}</strong>
                     </div>
                 </div>
             </div>
@@ -1257,16 +1275,7 @@ function renderManageMenuList() {
         const unit = item.unit || 'units';
         const stockClass = stock > 0 ? (stock <= 10 ? 'stock-low' : 'stock-available') : 'stock-out';
         
-        // Format stock display
-        let stockDisplay = stock;
-        let unitDisplay = '';
-        if (unit === 'kg') {
-            unitDisplay = ' ' + translations[currentLang]['kg'];
-        } else if (unit === 'grams' || unit === 'g') {
-            unitDisplay = ' ' + translations[currentLang]['grams'];
-        } else {
-            unitDisplay = ' ' + translations[currentLang]['units'];
-        }
+        const stockTextManage = formatQuantityDisplay(stock, unit);
         
         const itemDiv = document.createElement('div');
         itemDiv.className = 'manage-menu-item';
@@ -1276,7 +1285,7 @@ function renderManageMenuList() {
                 <div>
                     <strong>${itemName}</strong> - ₹${item.price.toFixed(2)}
                     <div class="stock-info ${stockClass}" style="margin-top: 5px; font-size: 0.9em;">
-                        ${translations[currentLang]['current-stock']}: <strong>${stockDisplay}${unitDisplay}</strong>
+                        ${translations[currentLang]['current-stock']}: <strong>${stockTextManage}</strong>
                     </div>
                 </div>
             </div>
@@ -1300,11 +1309,8 @@ function updateStock(itemId) {
 
     const currentStock = item.stock || 0;
     const unit = item.unit || 'units';
-    const unitDisplay = unit === 'kg' ? translations[currentLang]['kg'] : 
-                       (unit === 'grams' || unit === 'g') ? translations[currentLang]['grams'] : 
-                       translations[currentLang]['units'];
-    
-    const stockChange = prompt(`${translations[currentLang]['update-stock']}\n${translations[currentLang]['current-stock']}: ${currentStock} ${unitDisplay}\n${translations[currentLang]['add-stock']} (+ve) or Remove (-ve):`, '0');
+    const currentStockText = formatQuantityDisplay(currentStock, unit);
+    const stockChange = prompt(`${translations[currentLang]['update-stock']}\n${translations[currentLang]['current-stock']}: ${currentStockText}\n${translations[currentLang]['add-stock']} (+ve) or Remove (-ve):`, '0');
     
     if (stockChange === null) return;
     
@@ -1409,7 +1415,7 @@ function editMenuItem(itemId) {
             </div>
             <div style='margin-top:14px; display:flex; align-items:center; gap:12px;'>
               <img src='${item.image}' onerror="this.src='https://via.placeholder.com/120?text=${encodeURIComponent(itemName)}'" />
-              <div class='muted'>${t['current-stock']}: <strong>${item.stock || 0}</strong></div>
+              <div class='muted'>${t['current-stock']}: <strong>${formatQuantityDisplay(item.stock || 0, item.unit || 'units')}</strong></div>
               <button class='btn secondary' onclick='window.opener.updateStock(${item.id})'>${t['manage-stock']}</button>
             </div>
             <div class='actions'>
@@ -1442,7 +1448,13 @@ function applyInventoryEdit(itemId, updated){
     const nameVal = updated.name;
     if (currentLang === 'ta') { item.name = nameVal; } else { item.nameEn = nameVal; }
     item.price = updated.price;
-    item.unit = updated.unit || item.unit;
+    const prevUnit = item.unit || 'units';
+    if (updated.unit && updated.unit !== prevUnit) {
+        if (isWeightUnit(prevUnit) && isWeightUnit(updated.unit)) {
+            item.stock = convertWeight(item.stock || 0, prevUnit, updated.unit);
+        }
+        item.unit = updated.unit;
+    }
     if (updated.image) item.image = updated.image;
     const prevStock = item.stock || 0;
     if (updated.stock !== undefined && updated.stock !== null) {
